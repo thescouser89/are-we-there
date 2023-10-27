@@ -5,10 +5,15 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 
+import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.stream.Stream;
 
-public class GitClient {
+public class GitClient implements Closeable {
 
     private String repository;
     private File tempDir;
@@ -16,13 +21,14 @@ public class GitClient {
 
     public GitClient(String repository) throws Exception {
         this.repository = repository;
-        tempDir = Files.createTempDirectory("yet-git-client").toFile();;
+        tempDir = Files.createTempDirectory("yet-git-client").toFile();
+        ;
 
         git = Git.cloneRepository()
-                 .setURI(repository)
-                 .setDirectory(tempDir)
-                 .setCloneAllBranches(true)
-                 .call();
+                .setURI(repository)
+                .setDirectory(tempDir)
+                .setCloneAllBranches(true)
+                .call();
     }
 
     public String getParentOfCommit(String commitToFind) throws Exception {
@@ -53,5 +59,17 @@ public class GitClient {
     public boolean isCommitPresent(String commitToFind) throws Exception {
         ObjectId commitId = git.getRepository().resolve(commitToFind);
         return commitId != null;
+    }
+
+    @Override
+    public void close() throws IOException {
+        git.close();
+
+        // delete the temp dir
+        try (Stream<Path> pathStream = Files.walk(tempDir.toPath())) {
+            pathStream.sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(File::delete);
+        }
     }
 }
